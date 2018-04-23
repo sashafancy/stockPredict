@@ -7,10 +7,11 @@ import sys
 
 from alpha_vantage.timeseries import TimeSeries
 from bokeh.io import curdoc
-from bokeh.layouts import row, widgetbox
-from bokeh.models import ColumnDataSource
+from bokeh.layouts import row, widgetbox, layout
+from bokeh.models import ColumnDataSource, Div
 from bokeh.models.widgets import Slider, TextInput
 from bokeh.plotting import figure
+from os.path import dirname, join
 
 # Set up query
 def getSymbolByKeyword(keyword):
@@ -56,7 +57,6 @@ companyName = getCompanyNameBySymbol(companySymbol)
 stockData = getStockPriceBySymbol(companySymbol, beginDate, endDate)
 
 # Set up data
-
 df = list(stockData.keys())
 x = pd.to_datetime(df)
 y = list(stockData.values())
@@ -77,10 +77,20 @@ text = TextInput(title="company name", value='microsoft')
 textBegin = TextInput(title="begin date", value='2018-03-01')
 textEnd = TextInput(title="end date", value='2018-03-10')
 
+desc = Div(text=open(join(dirname(__file__), "description.html")).read(), width=800)
 
 # Set up callbacks
 def update_title(attrname, old, new):
     plot.title.text = text.value
+    companySymbol = getSymbolByKeyword(text.value)
+    #companyName = getCompanyNameBySymbol(companySymbol)
+    stockData = getStockPriceBySymbol(companySymbol, textBegin.value, textEnd.value)
+
+    # Set up data
+    df = list(stockData.keys())
+    x = pd.to_datetime(df)
+    y = list(stockData.values())
+    source.data = dict(x=x, y=y)
 
 text.on_change('value', update_title)
 
@@ -88,17 +98,18 @@ def update_data(attrname, old, new):
     # TODO: implement the onchange update
     # Get the current slider values
 
-
     # Generate the new curve
-
 
     source.data = dict(x=x, y=y)
 
-
-
-
 # Set up layouts and add to document
-inputs = widgetbox(text, textBegin, textEnd)
+sizing_mode = 'fixed' 
 
-curdoc().add_root(row(inputs, plot, width=800))
-curdoc().title = "Sliders"
+inputs = widgetbox(text, textBegin, textEnd)
+l = layout([
+    [desc],
+    [inputs, plot],
+], sizing_mode=sizing_mode)
+
+curdoc().add_root(l)
+curdoc().title = "Stock Prediction"
