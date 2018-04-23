@@ -1,18 +1,62 @@
 import numpy as np
 import pandas as pd 
+import urllib3
+import certifi
+import requests
+import sys
 
+from alpha_vantage.timeseries import TimeSeries
 from bokeh.io import curdoc
 from bokeh.layouts import row, widgetbox
 from bokeh.models import ColumnDataSource
 from bokeh.models.widgets import Slider, TextInput
 from bokeh.plotting import figure
 
+# Set up query
+def getSymbolByKeyword(keyword):
+    url_api = 'https://sandbox.tradier.com/v1/markets/search'
+    headers = {'Authorization': 'Bearer iy2BOsFcjIL0AzRA7ZPwpm6A9Qqz',
+                'Accept':'application/json'}
+    payload = {'q': keyword}
+    r = requests.get(url_api, headers=headers, params=payload)
+    # print(r.url)
+    results = r.json()['securities']
+    # print(results)
+    if results==None:
+        #print('No result relate to this keyword, please try another one!')
+        raise NameError('No result relate to this keyword, please try another one!')
+    else:
+        if isinstance(results['security'], dict):
+            company_symbol = results['security']['symbol']
+        else:
+            company_symbol = results['security'][0]['symbol']
+        
+    return company_symbol
+
+def getCompanyNameBySymbol(symbol):
+    companyList = pd.read_csv(filepath_or_buffer=sys.path[0]+'\\NASDAQ.csv')
+    symbolToName = companyList.set_index('Symbol')['Name'].to_dict()
+    if symbol in symbolToName:
+        companyName = symbolToName[symbol]
+    else:
+        raise NameError('This company is not a NASDAQ-listed company')
+    return companyName
+
+def getStockPriceBySymbol(companySymbol, beginDate, endDate):
+    ts = TimeSeries(key='1FUQVONDS2O2ARTS', output_format='pandas')
+    data= ts.get_daily(symbol=companySymbol, outputsize='full')[0]
+    closePrices = data.loc[beginDate:endDate]['4. close'].to_dict()
+    return closePrices
+
+keyword = 'microsoft'
+beginDate = '2018-03-01'
+endDate = '2018-03-10'
+companySymbol = getSymbolByKeyword(keyword)
+companyName = getCompanyNameBySymbol(companySymbol)
+stockData = getStockPriceBySymbol(companySymbol, beginDate, endDate)
 
 # Set up data
-N = 200
 
-stockData = {'2018-03-01': 92.849999999999994, '2018-03-02': 93.049999999999997, '2018-03-05': 93.640000000000001, '2018-03-06': 93.319999999999993, '2018-03-07': 93.859999999999999, '2018-03-08': 94.430000000000007, '2018-03-09': 96.540000000000006}
-#data = {'2018-03-01': 1, '2018-03-02': 2}
 df = list(stockData.keys())
 x = pd.to_datetime(df)
 y = list(stockData.values())
@@ -41,12 +85,11 @@ def update_title(attrname, old, new):
 text.on_change('value', update_title)
 
 def update_data(attrname, old, new):
-
+    # TODO: implement the onchange update
     # Get the current slider values
 
 
     # Generate the new curve
-    x = np.linspace(0, 4*np.pi, N)
 
 
     source.data = dict(x=x, y=y)
