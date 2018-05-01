@@ -2,6 +2,7 @@
 ## Installation and Usage 
 This Application uses API from alpha_vantage, twitter api, and tensorflow and requires a variety of installations. 
 ```
+pip install twitter
 pip install alpha_vantage
 pip install bokeh
 pip install numpy
@@ -15,6 +16,8 @@ bokeh serve --show stock.py
 ```
 
 Feel free to change the input box content with the company name you like and the date you wish to know about the stock price and twitter data, and then click outside of the input boxes. There is a short latency before you get an updated line chart due to the real-time query.
+
+Since we currently aren't able to get the premium level twitter search privilege, we fixed the dates of twitter graph to the recent week, and it would not change according to the input date. If you are grading way too late than 5.1, there is a chance to get no data in that graph.
 
 ## 1 StockData interface
 
