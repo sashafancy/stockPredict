@@ -14,7 +14,7 @@ from keras.preprocessing.text import Tokenizer
 from keras.models import load_model
 from alpha_vantage.timeseries import TimeSeries
 from bokeh.io import curdoc
-from bokeh.layouts import row, widgetbox, layout, column
+from bokeh.layouts import row, widgetbox, layout, column, Spacer
 from bokeh.models import ColumnDataSource, Div
 from bokeh.models.widgets import Slider, TextInput
 from bokeh.models.widgets.inputs import InputWidget
@@ -227,10 +227,11 @@ for w in [text, textBegin, textEnd]:
 sizing_mode = 'fixed' 
 
 inputs = widgetbox(text, textBegin, textEnd)
+space = Spacer(width=300, height=200)
 l = layout([
     [desc],
     [inputs, plot],
-    [twitter_plot],
+    [space, twitter_plot],
 ], sizing_mode=sizing_mode)
 
 curdoc().add_root(l)
