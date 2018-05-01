@@ -21,6 +21,10 @@ from bokeh.models.widgets.inputs import InputWidget
 from bokeh.plotting import figure
 from os.path import dirname, join
 
+#  =================================================================================
+#  Api functions part
+#  =================================================================================
+
 #1 ---------------------------- Stock Api: Set up query ----------------------------
 def getSymbolByKeyword(keyword):
     url_api = 'https://sandbox.tradier.com/v1/markets/search'
@@ -28,11 +32,8 @@ def getSymbolByKeyword(keyword):
                 'Accept':'application/json'}
     payload = {'q': keyword}
     r = requests.get(url_api, headers=headers, params=payload)
-    # print(r.url)
     results = r.json()['securities']
-    # print(results)
     if results==None:
-        #print('No result relate to this keyword, please try another one!')
         raise NameError('No result relate to this keyword, please try another one!')
     else:
         if isinstance(results['security'], dict):
@@ -43,7 +44,6 @@ def getSymbolByKeyword(keyword):
     return company_symbol
 
 def getCompanyNameBySymbol(symbol):
-    # companyList = pd.read_csv(filepath_or_buffer=sys.path[0]+'\\NASDAQ.csv')
     companyList = pd.read_csv('NASDAQ.csv')
     symbolToName = companyList.set_index('Symbol')['Name'].to_dict()
     if symbol in symbolToName:
@@ -59,15 +59,16 @@ def getStockPriceBySymbol(companySymbol, beginDate, endDate):
     return closePrices
 
 keyword = 'facebook'
-beginDate = '2018-04-16'
-endDate = '2018-04-23'
+beginDate = '2018-04-24'
+endDate = '2018-04-30'
 companySymbol = getSymbolByKeyword(keyword)
 companyName = getCompanyNameBySymbol(companySymbol)
 stockData = getStockPriceBySymbol(companySymbol, beginDate, endDate)
 
-# ---------------------------- End of stock price -------------------------------
+#1 ---------------------------- End of stock price ------------------------------
 
 #2 ------------------------ Twitter Api: text data ------------------------------
+# twitter api authentication step
 with open ('test.json', 'r') as f:
     twtr_auth = json.load(f)
 CONSUMER_KEY = twtr_auth[0]['consumer_key']
@@ -79,6 +80,7 @@ auth = OAuth(OAUTH_TOKEN, OAUTH_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET)
 
 t = Twitter(auth=auth)
 
+# general twitter search api
 def make_twitter_search(twitter_api, company_name, count, filename):
     result = twitter_api.search.tweets(q=company_name,count=count,lang="en")
     with open(filename,'w+')as f:
@@ -87,7 +89,7 @@ def make_twitter_search(twitter_api, company_name, count, filename):
             json.dump(tweet,f)
             f.write('\n')
 
-
+# tweets search by specific date
 def make_twitter_search2(twitter_api, company_name, count, ddl_date, filename):
     result = twitter_api.search.tweets(q=company_name,count=count,until=ddl_date,lang="en")
     listResult = []
@@ -98,7 +100,7 @@ def make_twitter_search2(twitter_api, company_name, count, ddl_date, filename):
 # test search with date limits
 # make_twitter_search2(t,"McDonald's",50,"2018-04-12","search-by-date")
 
-# ------------------------------ End of Twitter -------------------------------
+#2 ------------------------------ End of Twitter ------------------------------
 
 
 #3 --------------------- NLP: get the ratio of text data ----------------------
@@ -108,7 +110,8 @@ labels = ['negative', 'positive']
 # read in our saved dictionary
 with open('saved_models/dictionary.json', 'r') as dictionary_file:
     dictionary = json.load(dictionary_file)
-    
+
+# load the best model we have trained so far
 model = load_model('saved_models/best_model.h5')
 
 # makes sure that all the words in your input are registered in the dictionary
@@ -127,8 +130,6 @@ def predict_text(text):
     
     # predict
     pred = model.predict(preprocessed_text)
-    
-    #print("%s sentiment; %f%% confidence" % (labels[np.argmax(pred)], pred[0][np.argmax(pred)] * 100))
     return np.argmax(pred),pred[0][np.argmax(pred)]
 
 def postive_rate(texts):
@@ -147,38 +148,44 @@ def postive_rate(texts):
     else: 
         return 0
 
-#--------------------------------- End of NLP --------------------------------------
+#3 -------------------------------- End of NLP --------------------------------------
 
-# Set up data
+#  ==================================================================================
+#  query data part
+#  ==================================================================================
+
+# Set up initial stock price data
 df = list(stockData.keys())
 x = pd.to_datetime(df)
 y = list(stockData.values())
-
 source1 = ColumnDataSource(data=dict(x=x, y=y))
 
-# Set up the twitter sentiment analysis data
+# Set up initial twitter sentiment analysis data
 listDate = ['2018-04-24','2018-04-25', '2018-04-26', '2018-04-27', '2018-04-28', '2018-04-29', '2018-04-30']
 listValue = []
 for date in listDate:
     a = postive_rate(make_twitter_search2(t,"facebook",80000, date, "search-by-date"))
     listValue.append(a)
-# dictSentiment = dict(zip(listDate, listValue))
 x1 = pd.to_datetime(listDate)
 y1 = listValue
 source2 = ColumnDataSource(data=dict(x=x1,y=y1))
 
+#  ==================================================================================
+#  Draw graphs and layout
+#  ==================================================================================
 
-# Set up plot
+# Set up stock price plot
 plot = figure(plot_height=200, plot_width=600, title="alibaba",
               tools="crosshair,pan,reset,save,wheel_zoom, xbox_select",
               active_drag="xbox_select",
                 x_axis_type='datetime')
 plot.line(x='x',y= 'y', source=source1, line_width=3, line_alpha=0.6)
 
-twitter_plot = figure(plot_height=200, plot_width=600, title="microsoft", 
+# Set up twitter data plot
+twitter_plot = figure(plot_height=200, plot_width=600, title="facebook", 
               tools="crosshair,pan,reset,save,wheel_zoom",
                 x_axis_type='datetime',)
-twitter_plot.line(x='x', y='y', source=source2, line_width=3, line_alpha=0.6)
+twitter_plot.line(x='x', y='y', source=source2, color="orange", line_width=3, line_alpha=0.6)
 
 # Set up widgets
 text = TextInput(title="company name", value='facebook')
@@ -189,38 +196,32 @@ twitter_plot.title.text = companyName + ": Public Opinion"
 desc = Div(text=open(join(dirname(__file__), "description.html")).read(), width=800)
 
 # Set up callbacks
-def update_stockprice(attrname, old, new):
+def update_data(attrname, old, new):
     
-    # get company name and company symbol
+    # Get company name and company symbol
     companySymbol = getSymbolByKeyword(text.value)
     companyName = getCompanyNameBySymbol(companySymbol)
-    # update stock data
 
+    # Update stock data
     plot.title.text = companyName + ": Stock Price"
     stockData = getStockPriceBySymbol(companySymbol, textBegin.value, textEnd.value)
-
-    # Set up data
     df = list(stockData.keys())
     x = pd.to_datetime(df)
     y = list(stockData.values())
     source1.data = dict(x=x, y=y)
 
-
-    # update twitter data
+    # Update twitter data
     twitter_plot.title.text = companyName + ": Public Opinion"
     listValue = []
     for date in listDate:
         a = postive_rate(make_twitter_search2(t,companyName,80000, date, "search-by-date"))
         listValue.append(a)
-
-
-    # Set up data
     x1 = pd.to_datetime(listDate)
     y1 = listValue
     source2.data = dict(x=x1, y=y1)
 
 for w in [text, textBegin, textEnd]:
-    w.on_change('value', update_stockprice)
+    w.on_change('value', update_data)
 
 # Set up layouts and add to document
 sizing_mode = 'fixed' 
