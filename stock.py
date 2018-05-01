@@ -14,7 +14,7 @@ from keras.preprocessing.text import Tokenizer
 from keras.models import load_model
 from alpha_vantage.timeseries import TimeSeries
 from bokeh.io import curdoc
-from bokeh.layouts import row, widgetbox, layout
+from bokeh.layouts import row, widgetbox, layout, column
 from bokeh.models import ColumnDataSource, Div
 from bokeh.models.widgets import Slider, TextInput
 from bokeh.models.widgets.inputs import InputWidget
@@ -87,8 +87,6 @@ def make_twitter_search(twitter_api, company_name, count, filename):
             json.dump(tweet,f)
             f.write('\n')
 
-# test search without date limits
-# make_twitter_search(t,"facebook",100,"first_search")
 
 def make_twitter_search2(twitter_api, company_name, count, ddl_date, filename):
     result = twitter_api.search.tweets(q=company_name,count=count,until=ddl_date,lang="en")
@@ -155,48 +153,49 @@ def postive_rate(texts):
 df = list(stockData.keys())
 x = pd.to_datetime(df)
 y = list(stockData.values())
-source = ColumnDataSource(data=dict(x=x, y=y))
+
+source1 = ColumnDataSource(data=dict(x=x, y=y))
 
 # Set up the twitter sentiment analysis data
-# listDate = ['2018-04-16','2018-04-17', '2018-04-18', '2018-04-19', '2018-04-20', '2018-04-21', '2018-04-22']
-# listValue = []
-# for date in listDate:
-#     a = postive_rate(make_twitter_search2(t,"facebook",80000, date, "search-by-date"))
-#     listValue.append(a)
-# # dictSentiment = dict(zip(listDate, listValue))
-# x = pd.to_datetime(listDate)
-# y = listValue
-# source = ColumnDataSource(data=dict(x=x,y=y))
+listDate = ['2018-04-24','2018-04-25', '2018-04-26', '2018-04-27', '2018-04-28', '2018-04-29', '2018-04-30']
+listValue = []
+for date in listDate:
+    a = postive_rate(make_twitter_search2(t,"facebook",80000, date, "search-by-date"))
+    listValue.append(a)
+# dictSentiment = dict(zip(listDate, listValue))
+x1 = pd.to_datetime(listDate)
+y1 = listValue
+source2 = ColumnDataSource(data=dict(x=x1,y=y1))
+
 
 # Set up plot
 plot = figure(plot_height=200, plot_width=600, title="alibaba",
               tools="crosshair,pan,reset,save,wheel_zoom, xbox_select",
               active_drag="xbox_select",
                 x_axis_type='datetime')
-                #x_range=['2018-03-01','2018-03-10'], y_range=[80, 100])
+plot.line(x='x',y= 'y', source=source1, line_width=3, line_alpha=0.6)
 
-plot.line('x', 'y', source=source, line_width=3, line_alpha=0.6)
-
-# Set up twitter plot
-# twitter_plot = figure(plot_height=200, plot_width=600, title="microsoft",
-#               tools="crosshair,pan,reset,save,wheel_zoom",
-#                 x_axis_type='datetime')
-# plot.line([1,2,3,4],[1,2,3,4], line_width=3, line_alpha=0.6)
+twitter_plot = figure(plot_height=200, plot_width=600, title="microsoft", 
+              tools="crosshair,pan,reset,save,wheel_zoom",
+                x_axis_type='datetime',)
+twitter_plot.line(x='x', y='y', source=source2, line_width=3, line_alpha=0.6)
 
 # Set up widgets
 text = TextInput(title="company name", value='facebook')
-textBegin = TextInput(title="begin date", value='2018-04-16')
-textEnd = TextInput(title="end date", value='2018-04-23')
+textBegin = TextInput(title="begin date", value='2018-04-24')
+textEnd = TextInput(title="end date", value='2018-04-30')
 plot.title.text = companyName + ": Stock Price"
-#inputBegin = InputWidget(max_date="2018-03-10",min_date="2018-03-01", value='2018-03-02')
+twitter_plot.title.text = companyName + ": Public Opinion"
 desc = Div(text=open(join(dirname(__file__), "description.html")).read(), width=800)
 
 # Set up callbacks
-def update_title(attrname, old, new):
+def update_stockprice(attrname, old, new):
     
-    # plot.title.text = companyName + ": Public Opinion"
+    # get company name and company symbol
     companySymbol = getSymbolByKeyword(text.value)
     companyName = getCompanyNameBySymbol(companySymbol)
+    # update stock data
+
     plot.title.text = companyName + ": Stock Price"
     stockData = getStockPriceBySymbol(companySymbol, textBegin.value, textEnd.value)
 
@@ -204,18 +203,24 @@ def update_title(attrname, old, new):
     df = list(stockData.keys())
     x = pd.to_datetime(df)
     y = list(stockData.values())
-    source.data = dict(x=x, y=y)
+    source1.data = dict(x=x, y=y)
+
+
+    # update twitter data
+    twitter_plot.title.text = companyName + ": Public Opinion"
+    listValue = []
+    for date in listDate:
+        a = postive_rate(make_twitter_search2(t,companyName,80000, date, "search-by-date"))
+        listValue.append(a)
+
+
+    # Set up data
+    x1 = pd.to_datetime(listDate)
+    y1 = listValue
+    source2.data = dict(x=x1, y=y1)
 
 for w in [text, textBegin, textEnd]:
-    w.on_change('value', update_title)
-
-def update_data(attrname, old, new):
-    # TODO: implement the onchange update
-    # Get the current slider values
-
-    # Generate the new curve
-
-    source.data = dict(x=x, y=y)
+    w.on_change('value', update_stockprice)
 
 # Set up layouts and add to document
 sizing_mode = 'fixed' 
@@ -224,7 +229,7 @@ inputs = widgetbox(text, textBegin, textEnd)
 l = layout([
     [desc],
     [inputs, plot],
-#    [twitter_plot],
+    [twitter_plot],
 ], sizing_mode=sizing_mode)
 
 curdoc().add_root(l)
